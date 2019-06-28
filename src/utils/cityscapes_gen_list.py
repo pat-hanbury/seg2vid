@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '../')
+
 import torch
 from torch.utils.data import Dataset, DataLoader
 import os
@@ -6,10 +9,15 @@ import glob
 from tqdm import tqdm
 from multiprocessing.dummy import Pool as ThreadPool
 
+from datasets.dataset_path import CITYSCAPES_VAL_DATA_PATH
+
 # image_root_dir = '/mnt/lustre/panjunting/video_generation/cityscapes/leftImg8bit/train_extra/*'
 # image_root_dir = '/mnt/lustre/panjunting/video_generation/cityscapes/leftImg8bit/demoVideo/'
 
-image_root_dir = '/mnt/lustrenew/DATAshare/leftImg8bit_sequence/val/'
+# image_root_dir = '/mnt/lustrenew/DATAshare/leftImg8bit_sequence/val/'
+
+image_root_dir = CITYSCAPES_VAL_DATA_PATH
+
 listfile = open("cityscapes_val_sequence_full_18.txt", 'a')
 
 # image_root_dir = '/mnt/lustrenew/DATAshare/gtFine/val/'

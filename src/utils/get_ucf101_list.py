@@ -2,12 +2,16 @@ import numpy as np
 import random
 import os
 
+import sys
+sys.path.insert(0, '../')
+from datasets.dataset_path import UCF_101_DATA_PATH
+
 
 
 
 def listinit(path, testfilename='testbaskeball.txt', trainfilename='trainbaskeball.txt'):
 
-    output_dir = '/mnt/lustre/panjunting/f2video2.0/UCF-101/list'
+    output_dir = os.path.join(UCF_101_DATA_PATH, 'list')
 
     fop1 = open(os.path.join(output_dir, testfilename), 'w')
     fop2 = open(os.path.join(output_dir, trainfilename), 'w')
@@ -18,9 +22,11 @@ def listinit(path, testfilename='testbaskeball.txt', trainfilename='trainbaskeba
             print (item)
             try:
                 a = np.load(os.path.join(path, item))
+                print(a.shape)
                 num = a.shape[0]
 
-                if k == 9:
+                # if k == 9:
+                if True: # HACKED
                     for i in range(num - 4):
                         fop1.write(item + ' ' + str(i) + '\n')
                 else:
@@ -67,7 +73,7 @@ from tqdm import tqdm
 
 def get_ucf_list(num_frames, in_filename, category):
 
-    datapath = '/mnt/lustre/panjunting/f2video2.0/UCF-101'
+    datapath = UCF_101_DATA_PATH
     datalist = open(os.path.join(datapath, 'list', in_filename)).readlines()
 
     out_filename = in_filename[0:-4] + '_%dframes.txt'%num_frames
@@ -82,8 +88,8 @@ def get_ucf_list(num_frames, in_filename, category):
         if start + num_frames < num:
             f.write(datalist[idx])
             count += 1
-    print len(datalist)
-    print count
+    print (len(datalist))
+    print (count)
     f.close()
 
 
@@ -91,9 +97,9 @@ def get_ucf_list(num_frames, in_filename, category):
 
 
 if __name__ == '__main__':
-    # listinit(path='/mnt/lustre/panjunting/f2video2.0/UCF-101/Skiing',
-    #          testfilename='testskiing.txt',
-    #          trainfilename='trainskiing.txt')
-    # get_ucf_list(18, 'trainskiing.txt', 'trainskiing_18frames.txt', 'Skiing')
-    get_ucf_list(18, 'trainplayingviolin.txt', 'PlayingViolin')
-    get_ucf_list(18, 'testplayingviolin.txt', 'PlayingViolin')
+    listinit(path=os.path.join(UCF_101_DATA_PATH, 'IceDancing'),
+             testfilename='testicedancing.txt',
+             trainfilename='trainicedancing.txt')
+    get_ucf_list(18, 'testicedancing.txt', 'IceDancing')
+    #  get_ucf_list(18, 'trainplayingviolin.txt', 'PlayingViolin')
+    # get_ucf_list(18, 'testplayingviolin.txt', 'PlayingViolin')

@@ -5,7 +5,7 @@ import os, time, sys
 
 from models.multiframe_genmask import *
 from utils import utils
-from uitls import ops
+from utils import ops
 import losses
 from dataset import get_training_set, get_test_set
 from opts import parse_opts
@@ -105,6 +105,11 @@ class flowgen(object):
                 # forward + backward + optimize
                 y_pred_before_refine, y_pred, mu, logvar, flow, flowback, mask_fw, mask_bw, prediction_vgg_feature, gt_vgg_feature = vae(
                     frame1, data, noise_bg)
+                
+                print(f"Flow Mean: {flow.mean()}")
+                print(f"Flow Min: {flow.min()}")
+                print(f"Flow Max: {flow.max()}")
+                print(f"Flow Std: {flow.std()}")
 
                 # Compute losses
                 flowloss, reconloss, reconloss_back, reconloss_before, kldloss, flowcon, sim_loss, vgg_loss, mask_loss = objective_func(
@@ -149,6 +154,7 @@ class flowgen(object):
                         noise_bg = torch.randn(frame1.size()).cuda()
                         y_pred_before_refine, y_pred, mu, logvar, flow, flowback, mask_fw, mask_bw = vae(frame1, data,
                                                                                                          noise_bg)
+                        
 
                     utils.save_samples(data, y_pred_before_refine, y_pred, flow, mask_fw, mask_bw, iteration,
                                        self.sampledir, opt,

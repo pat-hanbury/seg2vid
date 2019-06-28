@@ -10,6 +10,13 @@ import cv2
 import datetime
 import numpy as np
 
+import os
+
+import sys
+sys.path.insert(0, '../')
+
+from datasets.dataset_path import UCF_101_DATA_PATH
+
 
 def make_color_wheel():
     """
@@ -135,10 +142,13 @@ def compute_color(u, v):
 #     cv2.imwrite(savepath, flow)
 
 def saveflow(flows, imgsize, savepath):
-    u = flows[:, :, 0]*3
-    v = flows[:, :, 1]*3
+    u = flows[:, :, 0]*3 # flow map horizontal
+    v = flows[:, :, 1]*3 # flow map vertical
     image = compute_color(u, v)
     flow = cv2.resize(image, imgsize)
+    print("SAVE PATH FOR ERROR FLOW")
+    print(savepath)
+    print("**"*20)
     cv2.imwrite(savepath, flow)
 
 
@@ -340,13 +350,14 @@ def refine_w_mask(input, ssmask, flow, mask, refine_net, opt, noise_bg):
 
 if __name__ == '__main__':
 
-    viewflow('a')
+    # viewflow('a')
     # viewflow('/ssd/10.10.20.21/share/guojiaming/UCF-101/Surfing/v_Surfing_g15_c02.avi')
-
+    # viewflow(os.path.join(UCF_101_DATA_PATH, 'Surfing/v_Surfing_g15_c02.avi'))
+    
     img = Vb(torch.randn([16, 3, 128, 128]).div(40)).cuda()
     flow = Vb(torch.randn([16, 2, img.size()[2], img.size()[3]]).div(40)).cuda()
     begin = datetime.datetime.now()
-    print (quickflowloss(flow, img))
+    # print (quickflowloss(flow, img))
     end = datetime.datetime.now()
     time2 = end-begin
     print (time2.total_seconds())

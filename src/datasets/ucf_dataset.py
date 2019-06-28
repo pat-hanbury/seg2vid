@@ -30,7 +30,6 @@ class UCF101(Dataset):
         return new_dirs
 
     def __getitem__(self, idx):
-
         item = np.load(os.path.join(self.datapath, self.datalist[idx].split(' ')[0]).strip())
         start = int(self.datalist[idx].split(' ')[1])
         item = item[start:start + self.numframe, :, :, :] / 255.0
@@ -39,6 +38,7 @@ class UCF101(Dataset):
         data = data.contiguous()
         # print data.shape
         data = data.transpose(2, 3).transpose(1, 2)
+
         data = data.float()
 
         if self.size == 64:

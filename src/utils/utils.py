@@ -240,11 +240,17 @@ def save_images_kitti(root_dir, data, y_pred, paths, opt):
 
 def save_flows(root_dir, flow, paths):
     # print(flow.size())
-    _flow = flow.permute(0, 2, 3, 4, 1)
+    print("FLOW PRINT PATHS")
+    print(paths)
+    print("***"*10)
+    _flow = flow.permute(0, 2, 3, 4, 1) # Before saving, they do this permute (switch axis, data shape does not change)
     _flow = _flow.cpu().data.numpy()
     # mask  = mask.unsqueeze(4)
     # # print (mask.size())
     # mask = mask.data.cpu().numpy() * 255.
+    
+    print(f"FLOW SHAPE IN SAVE FLOWS:")
+    print(_flow.shape)
 
     for i in range(flow.size()[0]):
 
@@ -255,14 +261,14 @@ def save_flows(root_dir, flow, paths):
         imageio.mimsave(os.path.join(root_dir, paths[0][i][0:-4] + '.gif'), flow_fo_save, fps=int(len(paths)-1-2))
 
         for j in range(flow.size()[2]):
-            ops.saveflow(_flow[i][j], (256, 128), os.path.join(root_dir, paths[j+1][i]))
+            ops.saveflow(_flow[i][j], (256, 128), os.path.join(root_dir, paths[j+1][i] + '.jpg')) # FOO added .jpg
 
 
 def save_occ_map(root_dir, mask, paths):
     mask = mask.data.cpu().numpy() * 255.
     for i in range(mask.shape[0]):
         for j in range(mask.shape[1]):
-            cv2.imwrite(os.path.join(root_dir, paths[j+1][i]), mask[i][j])
+            cv2.imwrite(os.path.join(root_dir, paths[j+1][i] + '.jpg'), mask[i][j])
 
 
 def save_samples_no_flow(data, y_pred, iteration, sampledir, opt, eval=False,

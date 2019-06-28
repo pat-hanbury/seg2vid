@@ -164,7 +164,7 @@ class TrainingLoss(object):
         return flowcon
 
     def reconlossT(self, x, y, t=4, mask=None):
-        if mask is not None:
+        if mask is naot None:
             x = x * mask.unsqueeze(2)
             y = y * mask.unsqueeze(2)
 

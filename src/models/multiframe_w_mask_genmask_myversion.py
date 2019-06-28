@@ -17,11 +17,11 @@ from models.vgg_utils import my_vgg
 
 
 class motion_net(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, opt, input_channel, output_channel=int(1024/2)):
         super(motion_net, self).__init__()
          # input 3*128*128
         self.main = nn.Sequential(
-            nn.Conv2d(opt.num_frames*opt.input_channel, 32, 4, 2, 1, bias=False),  # 64
+            nn.Conv2d(input_channel, 32, 4, 2, 1, bias=False),  # 64
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(32, 64, 4, 2, 1, bias=False),  # 32
             nn.BatchNorm2d(64),
@@ -37,8 +37,8 @@ class motion_net(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(128, 64, 4, 2, 1, bias=False)  # 8
         )
-        self.fc1 = nn.Linear(1024, 1024)
-        self.fc2 = nn.Linear(1024, 1024)
+        self.fc1 = nn.Linear(1024, output_channel)
+        self.fc2 = nn.Linear(1024, output_channel)
 
     def forward(self, x):
         temp = self.main(x).view(-1, 1024)
@@ -101,7 +101,7 @@ class upconv(nn.Module):
             nn.Conv2d(outnum * 2, outnum, kernel, stride, pad),
             nn.BatchNorm2d(outnum),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Upsample(scale_factor=2)
+            nn.Upsample(scale_factor=2, mode='bilinear')
         )
 
     def forward(self, x):
@@ -119,6 +119,7 @@ class getflow(nn.Module):
     def forward(self, x):
         return self.main(x)
 
+
 class get_occlusion_mask(nn.Module):
     def __init__(self):
         super(get_occlusion_mask, self).__init__()
@@ -128,7 +129,7 @@ class get_occlusion_mask(nn.Module):
         )
 
     def forward(self, x):
-        return F.sigmoid(self.main(x))
+        return torch.sigmoid(self.main(x))
 
 
 class get_frames(nn.Module):
@@ -141,13 +142,13 @@ class get_frames(nn.Module):
         )
 
     def forward(self, x):
-        return F.sigmoid(self.main(x))
+        return torch.sigmoid(self.main(x))
 
 
 class encoder(nn.Module):
     def __init__(self, opt):
         super(encoder, self).__init__()
-        self.econv1 = convbase(opt.input_channel, 32, 4, 2, 1)  # 32,64,64
+        self.econv1 = convbase(opt.input_channel + opt.mask_channel, 32, 4, 2, 1)  # 32,64,64
         self.econv2 = convblock(32, 64, 4, 2, 1)  # 64,32,32
         self.econv3 = convblock(64, 128, 4, 2, 1)  # 128,16,16
         self.econv4 = convblock(128, 256, 4, 2, 1)  # 256,8,8
@@ -184,8 +185,6 @@ class decoder(nn.Module):
         deco4 = torch.cat(torch.unbind(torch.cat([deco4, torch.unsqueeze(enco1, 2).repeat(1, 1, opt.num_predicted_frames, 1, 1)], 1), 2), 0)
         return deco4
 
-# from nets import Flow2Frame_warped
-# from vgg_128 import Flow2Frame_warped # with skip connections
 
 mean = Vb(torch.FloatTensor([0.485, 0.456, 0.406])).view([1,3,1,1])
 std = Vb(torch.FloatTensor([0.229, 0.224, 0.225])).view([1,3,1,1])
@@ -197,14 +196,16 @@ class VAE(nn.Module):
 
         self.opt = opt
         self.hallucination = hallucination
-        self.motion_net = motion_net(opt)
+
+        self.motion_net = motion_net(opt, int(opt.num_frames*opt.input_channel)+20, 1024)
+
         self.encoder = encoder(opt)
         self.flow_decoder = decoder(opt)
         if self.hallucination:
             self.raw_decoder = decoder(opt)
             self.predict = get_frames(opt)
 
-        self.zconv = convbase(256 + 64, int(16*self.opt.num_predicted_frames), 3, 1, 1)
+        self.zconv = convbase(256 + 64, 16*self.opt.num_predicted_frames, 3, 1, 1)
         self.floww = ops.flowwrapper()
         self.fc = nn.Linear(1024, 1024)
         self.flownext = getflow()
@@ -212,6 +213,7 @@ class VAE(nn.Module):
         self.get_mask = get_occlusion_mask()
         self.refine = refine
         if self.refine:
+
             from models.vgg_128 import RefineNet
             self.refine_net = RefineNet(num_channels=opt.input_channel)
 
@@ -232,30 +234,24 @@ class VAE(nn.Module):
         gpu_id = x.get_device()
         return (x - mean.cuda(gpu_id)) / std.cuda(gpu_id)
 
+    def forward(self, x, data, mask,  noise_bg, z_m=None):
 
-    def forward(self, x, data, noise_bg, z_m=None):
-        # from pdb import set_trace; set_trace()
         frame1 = data[:, 0, :, :, :]
         frame2 = data[:, 1:, :, :, :]
+        input = torch.cat([x, mask], 1)
         opt = self.opt
-        
-        print("shapes")
-        print(frame1.shape)
-        print(frame2.shape)
-        print(opt)
 
-        y = torch.cat([frame1, frame2.contiguous().view(-1, opt.num_predicted_frames * opt.input_channel, opt.input_size[0], opt.input_size[1]) - frame1.repeat(1, opt.num_predicted_frames, 1, 1)], 1)
-        
-        print(y.shape)
+        y = torch.cat(
+            [frame1, frame2.contiguous().view(-1, opt.num_predicted_frames * opt.input_channel, opt.input_size[0], opt.input_size[1]) 
+             - frame1.repeat(1, opt.num_predicted_frames, 1, 1)], 1)
 
         # Encoder Network --> encode input frames
-        enco1, enco2, enco3, codex = self.encoder(x)
+        enco1, enco2, enco3, codex = self.encoder(input)
 
         # Motion Network --> compute latent vector
-        mu, logvar = self.motion_net(y.contiguous().view(-1, opt.num_frames*opt.input_channel, opt.input_size[0], opt.input_size[1]))
-        # from pdb import set_trace; set_trace()
+        mu, logvar = self.motion_net(torch.cat([y, mask], 1).contiguous())
+
         if z_m is None:
-        # if True: #FOO ADDED THIS
             z_m = self.reparameterize(mu, logvar)
         codey = self.zconv(
             torch.cat([self.fc(z_m).view(-1, 64, int(opt.input_size[0] / 16), int(opt.input_size[1] / 16)), codex], 1))
@@ -274,9 +270,10 @@ class VAE(nn.Module):
 
         '''Compute Occlusion Mask'''
         # mask_fw, mask_bw = ops.get_occlusion_mask(flow, flowback, self.floww, opt, t=opt.num_predicted_frames)
-        masks = torch.cat(self.get_mask(flow_deco4).unsqueeze(2).chunk(opt.num_predicted_frames, 0), 2)  # (64, 2, 4, 128, 128)
-        mask_fw = masks[:,0,...]
-        mask_bw = masks[:,1,...]
+        masks = torch.cat(self.get_mask(flow_deco4).unsqueeze(2).chunk(opt.num_predicted_frames, 0),
+                          2)  # (64, 2, 4, 128, 128)
+        mask_fw = masks[:, 0, ...]
+        mask_bw = masks[:, 1, ...]
 
         '''Use mask before warpping'''
         output = ops.warp(x, flow, opt, self.floww, mask_fw)
@@ -288,18 +285,13 @@ class VAE(nn.Module):
             y_pred = ops.refine(output, flow, mask_fw, self.refine_net, opt, noise_bg)
 
         if self.training:
+            # y_pred_vgg_feature = self.vgg_net(
+            #     self._normalize(y_pred.contiguous().view(-1, opt.input_channel, opt.input_size, opt.input_size)))
+            prediction_vgg_feature = self.vgg_net(
+                self._normalize(output.contiguous().view(-1, opt.input_channel, opt.input_size[0], opt.input_size[1])))
+            gt_vgg_feature = self.vgg_net(
+                self._normalize(frame2.contiguous().view(-1, opt.input_channel, opt.input_size[0], opt.input_size[1])))
 
-            tmp1 = output.contiguous().view(-1, opt.input_channel, opt.input_size[0], opt.input_size[1])
-            tmp2 = frame2.contiguous().view(-1, opt.input_channel, opt.input_size[0], opt.input_size[1])
-
-            if opt.input_channel ==1:
-                tmp1 = tmp1.repeat(1, 3, 1, 1)
-                tmp2 = tmp2.repeat(1, 3, 1, 1)
-
-            prediction_vgg_feature = self.vgg_net(self._normalize(tmp1))
-            gt_vgg_feature = self.vgg_net(self._normalize(tmp2))
-
-            return output, y_pred, mu, logvar, flow, flowback, mask_fw, mask_bw, prediction_vgg_feature, gt_vgg_feature
-
+            return output, y_pred, mu, logvar, flow, flowback, mask_fw, mask_bw, prediction_vgg_feature, gt_vgg_feature#, y_pred_vgg_feature
         else:
             return output, y_pred, mu, logvar, flow, flowback, mask_fw, mask_bw

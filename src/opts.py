@@ -15,7 +15,7 @@ def parse_opts():
         help='input image channel (3 for RGB, 1 for Grayscale)')
     parser.add_argument(
         '--input_size',
-        default=(128, 256),
+        default=(256, 256), # CHANGED
         type=tuple,
         help='input image size')
     parser.add_argument(
