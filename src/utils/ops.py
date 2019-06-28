@@ -15,7 +15,7 @@ import os
 import sys
 sys.path.insert(0, '../')
 
-from datasets.dataset_path import UCF_101_DATA_PATH
+# from datasets.dataset_path import UCF_101_DATA_PATH
 
 
 def make_color_wheel():
